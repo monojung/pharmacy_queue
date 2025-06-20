@@ -31,7 +31,7 @@
         }
         
         .navbar {
-            background: rgba(255, 255, 255, 0.95);
+            background: rgba(255, 255, 255, 0.95) !important;
             backdrop-filter: blur(10px);
             box-shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
         }
@@ -280,8 +280,8 @@
         <div class="container">
             <a class="navbar-brand" href="/index.php">
                 <i class="fas fa-pills me-2"></i>
-                <?php echo $queue_manager->getSetting('hospital_name', 'โรงพยาบาล ABC'); ?> - 
-                <?php echo $queue_manager->getSetting('pharmacy_name', 'ห้องยา'); ?>
+                <?php echo isset($queue_manager) ? $queue_manager->getSetting('hospital_name', 'โรงพยาบาล ABC') : 'โรงพยาบาล ABC'; ?> - 
+                <?php echo isset($queue_manager) ? $queue_manager->getSetting('pharmacy_name', 'ห้องยา') : 'ห้องยา'; ?>
             </a>
             
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">

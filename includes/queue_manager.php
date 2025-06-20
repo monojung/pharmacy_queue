@@ -1,5 +1,10 @@
 <?php
-require_once '../config/database.php';
+// ตรวจสอบ path และใช้ path ที่ถูกต้อง
+if (file_exists(__DIR__ . '/../config/database.php')) {
+    require_once __DIR__ . '/../config/database.php';
+} else {
+    require_once 'config/database.php';
+}
 
 class QueueManager {
     private $conn;
