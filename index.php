@@ -200,20 +200,20 @@ include 'includes/header.php';
             </div>
             <div class="card-body">
                 <div class="d-grid gap-3">
-                    <a href="display.php" class="btn btn-success btn-lg">
+                    <a href="<?php echo url('display.php'); ?>" class="btn btn-success btn-lg">
                         <i class="fas fa-tv me-2"></i>จอแสดงคิว
                     </a>
                     
                     <?php if ($auth->isLoggedIn()): ?>
-                        <a href="admin/dashboard.php" class="btn btn-primary btn-lg">
+                        <a href="<?php echo url('admin/dashboard.php'); ?>" class="btn btn-primary btn-lg">
                             <i class="fas fa-tachometer-alt me-2"></i>แดชบอร์ด
                         </a>
                         
-                        <a href="admin/manage_queue.php" class="btn btn-warning btn-lg">
+                        <a href="<?php echo url('admin/manage_queue.php'); ?>" class="btn btn-warning btn-lg">
                             <i class="fas fa-list me-2"></i>จัดการคิว
                         </a>
                     <?php else: ?>
-                        <a href="login.php" class="btn btn-primary btn-lg">
+                        <a href="<?php echo url('login.php'); ?>" class="btn btn-primary btn-lg">
                             <i class="fas fa-sign-in-alt me-2"></i>เข้าสู่ระบบ
                         </a>
                     <?php endif; ?>
@@ -268,7 +268,7 @@ include 'includes/header.php';
                     <button class="btn btn-outline-primary btn-sm" onclick="location.reload()">
                         <i class="fas fa-sync-alt me-1"></i>รีเฟรช
                     </button>
-                    <a href="display.php" class="btn btn-success btn-sm">
+                    <a href="<?php echo url('display.php'); ?>" class="btn btn-success btn-sm">
                         <i class="fas fa-eye me-1"></i>ดูจอแสดงคิว
                     </a>
                 </div>
@@ -334,6 +334,14 @@ include 'includes/header.php';
                             </div>
                         <?php endforeach; ?>
                     </div>
+                    
+                    <?php if (count($today_queues) > 9): ?>
+                        <div class="text-center mt-3">
+                            <a href="<?php echo url('admin/manage_queue.php'); ?>" class="btn btn-outline-primary">
+                                <i class="fas fa-list me-2"></i>ดูคิวทั้งหมด
+                            </a>
+                        </div>
+                    <?php endif; ?>
                 <?php endif; ?>
             </div>
         </div>

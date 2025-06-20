@@ -1,3 +1,24 @@
+<?php
+// ฟังก์ชันสำหรับสร้าง URL ที่ถูกต้อง
+function getBaseUrl() {
+    $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http';
+    $host = $_SERVER['HTTP_HOST'];
+    $scriptName = $_SERVER['SCRIPT_NAME'];
+    $basePath = dirname($scriptName);
+    return $protocol . '://' . $host . ($basePath !== '/' ? $basePath : '');
+}
+
+function url($path = '') {
+    $baseUrl = getBaseUrl();
+    return $baseUrl . '/' . ltrim($path, '/');
+}
+
+// ตรวจสอบหน้าปัจจุบัน
+function isCurrentPage($page) {
+    $current = basename($_SERVER['PHP_SELF'], '.php');
+    return $current === $page;
+}
+?>
 <!DOCTYPE html>
 <html lang="th">
 <head>
@@ -10,7 +31,7 @@
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="/assets/css/style.css">
+    <link rel="stylesheet" href="<?php echo url('assets/css/style.css'); ?>">
     
     <style>
         :root {
@@ -278,7 +299,7 @@
     <!-- Navigation Bar -->
     <nav class="navbar navbar-expand-lg sticky-top">
         <div class="container">
-            <a class="navbar-brand" href="/index.php">
+            <a class="navbar-brand" href="<?php echo url('index.php'); ?>">
                 <i class="fas fa-pills me-2"></i>
                 <?php echo isset($queue_manager) ? $queue_manager->getSetting('hospital_name', 'โรงพยาบาล ABC') : 'โรงพยาบาล ABC'; ?> - 
                 <?php echo isset($queue_manager) ? $queue_manager->getSetting('pharmacy_name', 'ห้องยา') : 'ห้องยา'; ?>
@@ -291,29 +312,29 @@
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav me-auto">
                     <li class="nav-item">
-                        <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'index.php' ? 'active' : ''; ?>" href="/index.php">
+                        <a class="nav-link <?php echo isCurrentPage('index') ? 'active' : ''; ?>" href="<?php echo url('index.php'); ?>">
                             <i class="fas fa-home me-1"></i>หน้าหลัก
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'display.php' ? 'active' : ''; ?>" href="/display.php">
+                        <a class="nav-link <?php echo isCurrentPage('display') ? 'active' : ''; ?>" href="<?php echo url('display.php'); ?>">
                             <i class="fas fa-tv me-1"></i>จอแสดงคิว
                         </a>
                     </li>
                     <?php if (isset($auth) && $auth->isLoggedIn()): ?>
                     <li class="nav-item">
-                        <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'dashboard.php' ? 'active' : ''; ?>" href="/admin/dashboard.php">
+                        <a class="nav-link <?php echo isCurrentPage('dashboard') ? 'active' : ''; ?>" href="<?php echo url('admin/dashboard.php'); ?>">
                             <i class="fas fa-tachometer-alt me-1"></i>แดชบอร์ด
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'manage_queue.php' ? 'active' : ''; ?>" href="/admin/manage_queue.php">
+                        <a class="nav-link <?php echo isCurrentPage('manage_queue') ? 'active' : ''; ?>" href="<?php echo url('admin/manage_queue.php'); ?>">
                             <i class="fas fa-list me-1"></i>จัดการคิว
                         </a>
                     </li>
                     <?php if ($auth->hasRole(['admin'])): ?>
                     <li class="nav-item">
-                        <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'settings.php' ? 'active' : ''; ?>" href="/admin/settings.php">
+                        <a class="nav-link <?php echo isCurrentPage('settings') ? 'active' : ''; ?>" href="<?php echo url('admin/settings.php'); ?>">
                             <i class="fas fa-cog me-1"></i>การตั้งค่า
                         </a>
                     </li>
@@ -329,14 +350,14 @@
                                 <i class="fas fa-user me-1"></i><?php echo htmlspecialchars($user['full_name']); ?>
                             </a>
                             <ul class="dropdown-menu">
-                                <li><a class="dropdown-item" href="/admin/profile.php"><i class="fas fa-user-edit me-2"></i>โปรไฟล์</a></li>
+                                <li><a class="dropdown-item" href="<?php echo url('admin/profile.php'); ?>"><i class="fas fa-user-edit me-2"></i>โปรไฟล์</a></li>
                                 <li><hr class="dropdown-divider"></li>
-                                <li><a class="dropdown-item" href="/logout.php"><i class="fas fa-sign-out-alt me-2"></i>ออกจากระบบ</a></li>
+                                <li><a class="dropdown-item" href="<?php echo url('logout.php'); ?>"><i class="fas fa-sign-out-alt me-2"></i>ออกจากระบบ</a></li>
                             </ul>
                         </li>
                     <?php else: ?>
                         <li class="nav-item">
-                            <a class="nav-link" href="/login.php">
+                            <a class="nav-link" href="<?php echo url('login.php'); ?>">
                                 <i class="fas fa-sign-in-alt me-1"></i>เข้าสู่ระบบ
                             </a>
                         </li>

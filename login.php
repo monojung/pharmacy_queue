@@ -216,7 +216,7 @@ $page_title = 'เข้าสู่ระบบ';
         </div>
         
         <div class="back-to-home">
-            <a href="/index.php">
+            <a href="<?php echo url('index.php'); ?>">
                 <i class="fas fa-arrow-left me-2"></i>กลับสู่หน้าหลัก
             </a>
         </div>

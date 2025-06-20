@@ -2,6 +2,20 @@
 require_once 'config/database.php';
 require_once 'includes/queue_manager.php';
 
+// ฟังก์ชันสำหรับสร้าง URL
+function getBaseUrl() {
+    $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http';
+    $host = $_SERVER['HTTP_HOST'];
+    $scriptName = $_SERVER['SCRIPT_NAME'];
+    $basePath = dirname($scriptName);
+    return $protocol . '://' . $host . ($basePath !== '/' ? $basePath : '');
+}
+
+function url($path = '') {
+    $baseUrl = getBaseUrl();
+    return $baseUrl . '/' . ltrim($path, '/');
+}
+
 $queue_manager = new QueueManager();
 $page_title = 'จอแสดงคิว';
 
@@ -353,7 +367,7 @@ $pharmacy_name = $queue_manager->getSetting('pharmacy_name', 'ห้องยา
     </style>
 </head>
 <body>
-    <a href="/index.php" class="back-button">
+    <a href="<?php echo url('index.php'); ?>" class="back-button">
         <i class="fas fa-arrow-left me-2"></i>กลับ
     </a>
     
@@ -383,6 +397,12 @@ $pharmacy_name = $queue_manager->getSetting('pharmacy_name', 'ห้องยา
                                         <div style="font-size: 1.2rem; margin-top: 15px;">
                                             <i class="fas fa-hand-point-right me-2"></i>ที่เคาน์เตอร์รับยา
                                         </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
             <?php else: ?>
                 <div class="no-queue-message">
                     <i class="fas fa-bell-slash"></i>
@@ -493,25 +513,27 @@ $pharmacy_name = $queue_manager->getSetting('pharmacy_name', 'ห้องยา
     <script>
         // เสียงแจ้งเตือนเมื่อมีการเรียกคิว
         function playCallSound() {
-            // ใช้ Web Audio API สำหรับเสียงแจ้งเตือน
-            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            
-            // สร้างเสียงแจ้งเตือน
-            const oscillator = audioContext.createOscillator();
-            const gainNode = audioContext.createGain();
-            
-            oscillator.connect(gainNode);
-            gainNode.connect(audioContext.destination);
-            
-            oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
-            oscillator.frequency.setValueAtTime(600, audioContext.currentTime + 0.1);
-            oscillator.frequency.setValueAtTime(800, audioContext.currentTime + 0.2);
-            
-            gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
-            
-            oscillator.start(audioContext.currentTime);
-            oscillator.stop(audioContext.currentTime + 0.3);
+            try {
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
+                oscillator.frequency.setValueAtTime(600, audioContext.currentTime + 0.1);
+                oscillator.frequency.setValueAtTime(800, audioContext.currentTime + 0.2);
+                
+                gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+                
+                oscillator.start(audioContext.currentTime);
+                oscillator.stop(audioContext.currentTime + 0.3);
+            } catch (e) {
+                console.log('Cannot play sound:', e);
+            }
         }
         
         // Text-to-Speech สำหรับเรียกชื่อ
@@ -592,31 +614,4 @@ $pharmacy_name = $queue_manager->getSetting('pharmacy_name', 'ห้องยา
         
         // ซ่อน cursor หลังจาก 5 วินาที
         let cursorTimeout;
-        function hideCursor() {
-            document.body.style.cursor = 'none';
-        }
-        
-        function showCursor() {
-            document.body.style.cursor = 'default';
-            clearTimeout(cursorTimeout);
-            cursorTimeout = setTimeout(hideCursor, 5000);
-        }
-        
-        document.addEventListener('mousemove', showCursor);
-        cursorTimeout = setTimeout(hideCursor, 5000);
-        
-        // Wake lock เพื่อป้องกันหน้าจอดับ
-        if ('wakeLock' in navigator) {
-            navigator.wakeLock.request('screen').catch(err => {
-                console.log('Wake lock failed:', err);
-            });
-        }
-    </script>
-</body>
-</html>>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    <?php endforeach; ?>
-                </div
+        function hideCursor
