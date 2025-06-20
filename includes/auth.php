@@ -1,25 +1,33 @@
 <?php
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
 // ตรวจสอบ path และใช้ path ที่ถูกต้อง
 if (file_exists(__DIR__ . '/../config/database.php')) {
     require_once __DIR__ . '/../config/database.php';
-} else {
+} else if (file_exists('config/database.php')) {
     require_once 'config/database.php';
-}
-
-// ฟังก์ชันสำหรับสร้าง URL
-function getBaseUrl() {
-    $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http';
-    $host = $_SERVER['HTTP_HOST'];
-    $scriptName = $_SERVER['SCRIPT_NAME'];
-    $basePath = dirname($scriptName);
-    return $protocol . '://' . $host . ($basePath !== '/' ? $basePath : '');
-}
-
-function url($path = '') {
-    $baseUrl = getBaseUrl();
-    return $baseUrl . '/' . ltrim($path, '/');
+} else {
+    // Create inline database connection if config file not found
+    if (!function_exists('getDB')) {
+        function getDB() {
+            static $db = null;
+            if ($db === null) {
+                try {
+                    $dsn = "mysql:host=localhost;dbname=pharmacy_queue;charset=utf8mb4";
+                    $db = new PDO($dsn, 'root', '', [
+                        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                        PDO::ATTR_EMULATE_PREPARES => false,
+                    ]);
+                } catch(PDOException $e) {
+                    throw new Exception("Database connection failed: " . $e->getMessage());
+                }
+            }
+            return $db;
+        }
+    }
 }
 
 class Auth {
@@ -27,7 +35,12 @@ class Auth {
     private $session_timeout = 3600; // 1 hour
     
     public function __construct() {
-        $this->conn = getDB();
+        try {
+            $this->conn = getDB();
+        } catch(Exception $e) {
+            error_log("Auth initialization error: " . $e->getMessage());
+            throw $e;
+        }
         $this->checkSessionTimeout();
     }
     
@@ -97,7 +110,9 @@ class Auth {
         session_destroy();
         
         // เริ่ม session ใหม่
-        session_start();
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
+        }
         
         return true;
     }
@@ -124,7 +139,7 @@ class Auth {
     public function requireLogin($redirect_url = null) {
         if (!$this->isLoggedIn()) {
             $current_url = $_SERVER['REQUEST_URI'] ?? '';
-            $login_url = url('login.php');
+            $login_url = $this->getBaseUrl() . '/login.php';
             
             if ($redirect_url) {
                 $login_url .= '?redirect=' . urlencode($redirect_url);
@@ -142,7 +157,7 @@ class Auth {
         $this->requireLogin();
         
         if (!$this->hasRole($roles)) {
-            header('Location: ' . url('unauthorized.php'));
+            header('Location: ' . $this->getBaseUrl() . '/unauthorized.php');
             exit();
         }
     }
@@ -210,123 +225,6 @@ class Auth {
         }
     }
     
-    // อัพเดทข้อมูลผู้ใช้
-    public function updateUser($user_id, $data) {
-        try {
-            $allowed_fields = ['full_name', 'role', 'status'];
-            $set_clauses = [];
-            $params = [];
-            
-            foreach ($data as $field => $value) {
-                if (in_array($field, $allowed_fields)) {
-                    $set_clauses[] = "$field = :$field";
-                    $params[":$field"] = $value;
-                }
-            }
-            
-            if (empty($set_clauses)) {
-                return false;
-            }
-            
-            $sql = "UPDATE users SET " . implode(', ', $set_clauses) . " WHERE id = :user_id";
-            $params[':user_id'] = $user_id;
-            
-            $stmt = $this->conn->prepare($sql);
-            $result = $stmt->execute($params);
-            
-            if ($result) {
-                $this->logUserActivity($user_id, 'updated', 'อัพเดทข้อมูลผู้ใช้');
-                
-                // อัพเดท session ถ้าเป็นผู้ใช้ปัจจุบัน
-                if ($user_id == $_SESSION['user_id']) {
-                    if (isset($data['full_name'])) {
-                        $_SESSION['full_name'] = $data['full_name'];
-                    }
-                    if (isset($data['role'])) {
-                        $_SESSION['role'] = $data['role'];
-                    }
-                }
-            }
-            
-            return $result;
-        } catch(PDOException $e) {
-            error_log("Update user error: " . $e->getMessage());
-            return false;
-        }
-    }
-    
-    // เปลี่ยนรหัสผ่าน
-    public function changePassword($user_id, $current_password, $new_password) {
-        try {
-            // ตรวจสอบรหัสผ่านเดิม
-            $stmt = $this->conn->prepare("SELECT password FROM users WHERE id = :user_id");
-            $stmt->bindParam(':user_id', $user_id);
-            $stmt->execute();
-            $user = $stmt->fetch();
-            
-            if (!$user || !password_verify($current_password, $user['password'])) {
-                return false;
-            }
-            
-            // อัพเดทรหัสผ่านใหม่
-            $hashed_password = password_hash($new_password, PASSWORD_DEFAULT);
-            $stmt = $this->conn->prepare("UPDATE users SET password = :password WHERE id = :user_id");
-            $stmt->bindParam(':password', $hashed_password);
-            $stmt->bindParam(':user_id', $user_id);
-            
-            $result = $stmt->execute();
-            
-            if ($result) {
-                $this->logUserActivity($user_id, 'password_changed', 'เปลี่ยนรหัสผ่าน');
-            }
-            
-            return $result;
-        } catch(PDOException $e) {
-            error_log("Change password error: " . $e->getMessage());
-            return false;
-        }
-    }
-    
-    // รับรายการผู้ใช้ทั้งหมด
-    public function getAllUsers() {
-        try {
-            $stmt = $this->conn->prepare("
-                SELECT id, username, full_name, role, status, created_at, last_login 
-                FROM users 
-                ORDER BY created_at DESC
-            ");
-            $stmt->execute();
-            
-            return $stmt->fetchAll();
-        } catch(PDOException $e) {
-            error_log("Get all users error: " . $e->getMessage());
-            return [];
-        }
-    }
-    
-    // ลบผู้ใช้
-    public function deleteUser($user_id) {
-        try {
-            // ไม่สามารถลบตัวเอง
-            if ($user_id == $_SESSION['user_id']) {
-                return false;
-            }
-            
-            $stmt = $this->conn->prepare("DELETE FROM users WHERE id = :user_id");
-            $stmt->bindParam(':user_id', $user_id);
-            $result = $stmt->execute();
-            
-            if ($result) {
-                $this->logUserActivity($_SESSION['user_id'], 'deleted_user', "ลบผู้ใช้ ID: $user_id");
-            }
-            
-            return $result;
-        } catch(PDOException $e) {
-            error_log("Delete user error: " . $e->getMessage());
-            return false;
-        }
-    }
-    
     // บันทึกกิจกรรมผู้ใช้
     private function logUserActivity($user_id, $action, $description = '') {
         try {
@@ -380,100 +278,38 @@ class Auth {
         }
     }
     
-    // ตรวจสอบ brute force attack
-    public function checkBruteForce($username, $max_attempts = 5, $lockout_time = 900) { // 15 minutes
-        try {
-            $stmt = $this->conn->prepare("
-                SELECT COUNT(*) as attempts 
-                FROM failed_login_log 
-                WHERE username = :username 
-                AND ip_address = :ip_address 
-                AND created_at > DATE_SUB(NOW(), INTERVAL :lockout_time SECOND)
-            ");
-            $stmt->bindParam(':username', $username);
-            $stmt->bindParam(':ip_address', $_SERVER['REMOTE_ADDR'] ?? '');
-            $stmt->bindParam(':lockout_time', $lockout_time);
-            $stmt->execute();
-            
-            $result = $stmt->fetch();
-            
-            return $result['attempts'] >= $max_attempts;
-        } catch(PDOException $e) {
-            error_log("Check brute force error: " . $e->getMessage());
-            return false;
-        }
-    }
-    
-    // รีเซ็ต failed login attempts
-    public function resetFailedAttempts($username) {
-        try {
-            $stmt = $this->conn->prepare("
-                DELETE FROM failed_login_log 
-                WHERE username = :username 
-                AND ip_address = :ip_address
-            ");
-            $stmt->bindParam(':username', $username);
-            $stmt->bindParam(':ip_address', $_SERVER['REMOTE_ADDR'] ?? '');
-            
-            return $stmt->execute();
-        } catch(PDOException $e) {
-            error_log("Reset failed attempts error: " . $e->getMessage());
-            return false;
-        }
-    }
-    
-    // รับสถิติผู้ใช้
-    public function getUserStats($user_id) {
-        try {
-            $stmt = $this->conn->prepare("
-                SELECT 
-                    COUNT(*) as total_logins,
-                    MAX(created_at) as last_activity,
-                    MIN(created_at) as first_login
-                FROM user_activity_log 
-                WHERE user_id = :user_id 
-                AND action = 'login'
-            ");
-            $stmt->bindParam(':user_id', $user_id);
-            $stmt->execute();
-            
-            return $stmt->fetch();
-        } catch(PDOException $e) {
-            error_log("Get user stats error: " . $e->getMessage());
-            return [
-                'total_logins' => 0,
-                'last_activity' => null,
-                'first_login' => null
-            ];
-        }
-    }
-    
-    // ตรวจสอบความแข็งแรงของรหัสผ่าน
-    public function validatePasswordStrength($password) {
-        $errors = [];
-        
-        if (strlen($password) < 8) {
-            $errors[] = 'รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร';
+    // Get base URL (ใช้ฟังก์ชันจาก database.php ถ้ามี)
+    private function getBaseUrl() {
+        if (function_exists('getBaseUrl')) {
+            return getBaseUrl();
         }
         
-        if (!preg_match('/[A-Z]/', $password)) {
-            $errors[] = 'รหัสผ่านต้องมีตัวอักษรพิมพ์ใหญ่อย่างน้อย 1 ตัว';
+        $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https://' : 'http://';
+        $host = $_SERVER['HTTP_HOST'];
+        $script = $_SERVER['SCRIPT_NAME'];
+        $path = dirname($script);
+        
+        // Remove /admin from path if present
+        if (strpos($path, '/admin') !== false) {
+            $path = str_replace('/admin', '', $path);
         }
         
-        if (!preg_match('/[a-z]/', $password)) {
-            $errors[] = 'รหัสผ่านต้องมีตัวอักษรพิมพ์เล็กอย่างน้อย 1 ตัว';
-        }
-        
-        if (!preg_match('/[0-9]/', $password)) {
-            $errors[] = 'รหัสผ่านต้องมีตัวเลขอย่างน้อย 1 ตัว';
-        }
-        
-        return [
-            'valid' => empty($errors),
-            'errors' => $errors
-        ];
+        return $protocol . $host . ($path === '/' ? '' : $path);
     }
 }
 
 // สร้าง instance สำหรับใช้งาน
-$auth = new Auth();
+try {
+    $auth = new Auth();
+} catch(Exception $e) {
+    // Create a mock auth object if database is not available
+    $auth = new class {
+        public function isLoggedIn() { return false; }
+        public function requireLogin() { 
+            header('Location: /login.php');
+            exit();
+        }
+        public function hasRole($roles) { return false; }
+        public function getCurrentUser() { return null; }
+    };
+}

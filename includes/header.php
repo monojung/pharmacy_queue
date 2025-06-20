@@ -1,9 +1,11 @@
 <?php
-// Include common functions
-if (file_exists(__DIR__ . '/functions.php')) {
-    require_once __DIR__ . '/functions.php';
-} else if (file_exists('includes/functions.php')) {
-    require_once 'includes/functions.php';
+// Include common functions only if not already included
+if (!function_exists('isCurrentPage')) {
+    if (file_exists(__DIR__ . '/functions.php')) {
+        require_once __DIR__ . '/functions.php';
+    } else if (file_exists('includes/functions.php')) {
+        require_once 'includes/functions.php';
+    }
 }
 ?>
 <!DOCTYPE html>
@@ -18,7 +20,16 @@ if (file_exists(__DIR__ . '/functions.php')) {
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="<?php echo url('assets/css/style.css'); ?>">
+    <?php 
+    // สร้าง URL สำหรับ CSS
+    $css_url = '';
+    if (function_exists('url')) {
+        $css_url = url('assets/css/style.css');
+    } else {
+        $css_url = 'assets/css/style.css';
+    }
+    ?>
+    <link rel="stylesheet" href="<?php echo $css_url; ?>">
     
     <style>
         :root {
@@ -286,7 +297,16 @@ if (file_exists(__DIR__ . '/functions.php')) {
     <!-- Navigation Bar -->
     <nav class="navbar navbar-expand-lg sticky-top">
         <div class="container">
-            <a class="navbar-brand" href="<?php echo url('index.php'); ?>">
+            <?php
+            // สร้าง URL สำหรับ brand link
+            $brand_url = '';
+            if (function_exists('url')) {
+                $brand_url = url('index.php');
+            } else {
+                $brand_url = 'index.php';
+            }
+            ?>
+            <a class="navbar-brand" href="<?php echo $brand_url; ?>">
                 <i class="fas fa-pills me-2"></i>
                 <?php echo isset($queue_manager) ? $queue_manager->getSetting('hospital_name', 'โรงพยาบาล ABC') : 'โรงพยาบาล ABC'; ?> - 
                 <?php echo isset($queue_manager) ? $queue_manager->getSetting('pharmacy_name', 'ห้องยา') : 'ห้องยา'; ?>
@@ -299,29 +319,29 @@ if (file_exists(__DIR__ . '/functions.php')) {
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav me-auto">
                     <li class="nav-item">
-                        <a class="nav-link <?php echo isCurrentPage('index') ? 'active' : ''; ?>" href="<?php echo url('index.php'); ?>">
+                        <a class="nav-link <?php echo (function_exists('isCurrentPage') && isCurrentPage('index')) ? 'active' : ''; ?>" href="<?php echo function_exists('url') ? url('index.php') : 'index.php'; ?>">
                             <i class="fas fa-home me-1"></i>หน้าหลัก
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link <?php echo isCurrentPage('display') ? 'active' : ''; ?>" href="<?php echo url('display.php'); ?>">
+                        <a class="nav-link <?php echo (function_exists('isCurrentPage') && isCurrentPage('display')) ? 'active' : ''; ?>" href="<?php echo function_exists('url') ? url('display.php') : 'display.php'; ?>">
                             <i class="fas fa-tv me-1"></i>จอแสดงคิว
                         </a>
                     </li>
                     <?php if (isset($auth) && $auth->isLoggedIn()): ?>
                     <li class="nav-item">
-                        <a class="nav-link <?php echo isCurrentPage('dashboard') ? 'active' : ''; ?>" href="<?php echo url('admin/dashboard.php'); ?>">
+                        <a class="nav-link <?php echo (function_exists('isCurrentPage') && isCurrentPage('dashboard')) ? 'active' : ''; ?>" href="<?php echo function_exists('url') ? url('admin/dashboard.php') : 'admin/dashboard.php'; ?>">
                             <i class="fas fa-tachometer-alt me-1"></i>แดชบอร์ด
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link <?php echo isCurrentPage('manage_queue') ? 'active' : ''; ?>" href="<?php echo url('admin/manage_queue.php'); ?>">
+                        <a class="nav-link <?php echo (function_exists('isCurrentPage') && isCurrentPage('manage_queue')) ? 'active' : ''; ?>" href="<?php echo function_exists('url') ? url('admin/manage_queue.php') : 'admin/manage_queue.php'; ?>">
                             <i class="fas fa-list me-1"></i>จัดการคิว
                         </a>
                     </li>
                     <?php if ($auth->hasRole(['admin'])): ?>
                     <li class="nav-item">
-                        <a class="nav-link <?php echo isCurrentPage('settings') ? 'active' : ''; ?>" href="<?php echo url('admin/settings.php'); ?>">
+                        <a class="nav-link <?php echo (function_exists('isCurrentPage') && isCurrentPage('settings')) ? 'active' : ''; ?>" href="<?php echo function_exists('url') ? url('admin/settings.php') : 'admin/settings.php'; ?>">
                             <i class="fas fa-cog me-1"></i>การตั้งค่า
                         </a>
                     </li>
@@ -337,14 +357,14 @@ if (file_exists(__DIR__ . '/functions.php')) {
                                 <i class="fas fa-user me-1"></i><?php echo htmlspecialchars($user['full_name']); ?>
                             </a>
                             <ul class="dropdown-menu">
-                                <li><a class="dropdown-item" href="<?php echo url('admin/profile.php'); ?>"><i class="fas fa-user-edit me-2"></i>โปรไฟล์</a></li>
+                                <li><a class="dropdown-item" href="<?php echo function_exists('url') ? url('admin/profile.php') : 'admin/profile.php'; ?>"><i class="fas fa-user-edit me-2"></i>โปรไฟล์</a></li>
                                 <li><hr class="dropdown-divider"></li>
-                                <li><a class="dropdown-item" href="<?php echo url('logout.php'); ?>"><i class="fas fa-sign-out-alt me-2"></i>ออกจากระบบ</a></li>
+                                <li><a class="dropdown-item" href="<?php echo function_exists('url') ? url('logout.php') : 'logout.php'; ?>"><i class="fas fa-sign-out-alt me-2"></i>ออกจากระบบ</a></li>
                             </ul>
                         </li>
                     <?php else: ?>
                         <li class="nav-item">
-                            <a class="nav-link" href="<?php echo url('login.php'); ?>">
+                            <a class="nav-link" href="<?php echo function_exists('url') ? url('login.php') : 'login.php'; ?>">
                                 <i class="fas fa-sign-in-alt me-1"></i>เข้าสู่ระบบ
                             </a>
                         </li>

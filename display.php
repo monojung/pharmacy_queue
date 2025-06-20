@@ -2,42 +2,16 @@
 require_once 'config/database.php';
 require_once 'includes/queue_manager.php';
 
-// ฟังก์ชันสำหรับสร้าง URL
-function getBaseUrl() {
-    $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http';
-    $host = $_SERVER['HTTP_HOST'];
-    $scriptName = $_SERVER['SCRIPT_NAME'];
-    $basePath = dirname($scriptName);
-    return $protocol . '://' . $host . ($basePath !== '/' ? $basePath : '');
-}
-
-function url($path = '') {
-    $baseUrl = getBaseUrl();
-    return $baseUrl . '/' . ltrim($path, '/');
-}
-
 $queue_manager = new QueueManager();
 $page_title = 'จอแสดงคิว';
 
-// รับคิวที่กำลังเรียก (สถานะ ready)
+// รับข้อมูลคิวปัจจุบัน
 $calling_queues = $queue_manager->getAllQueues('ready');
-
-// รับคิวที่รอ (สถานะ waiting และ preparing)
 $waiting_queues = $queue_manager->getAllQueues('waiting');
 $preparing_queues = $queue_manager->getAllQueues('preparing');
+$completed_queues = $queue_manager->getAllQueues('completed', date('Y-m-d'));
 
-// รวมคิวที่รอและกำลังเตรียม
-$pending_queues = array_merge($waiting_queues, $preparing_queues);
-
-// เรียงตามความสำคัญ
-usort($pending_queues, function($a, $b) {
-    $priority_order = ['emergency' => 1, 'urgent' => 2, 'normal' => 3];
-    if ($priority_order[$a['priority']] != $priority_order[$b['priority']]) {
-        return $priority_order[$a['priority']] - $priority_order[$b['priority']];
-    }
-    return strtotime($a['created_at']) - strtotime($b['created_at']);
-});
-
+// รับการตั้งค่า
 $hospital_name = $queue_manager->getSetting('hospital_name', 'โรงพยาบาล ABC');
 $pharmacy_name = $queue_manager->getSetting('pharmacy_name', 'ห้องยา');
 ?>
@@ -47,7 +21,7 @@ $pharmacy_name = $queue_manager->getSetting('pharmacy_name', 'ห้องยา
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?php echo $page_title; ?> - ระบบเรียกคิวรับยา</title>
+    <title><?php echo $page_title; ?> - <?php echo $hospital_name; ?></title>
     
     <!-- Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -60,210 +34,176 @@ $pharmacy_name = $queue_manager->getSetting('pharmacy_name', 'ห้องยา
         body {
             font-family: 'Prompt', sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
             margin: 0;
             padding: 0;
             overflow-x: hidden;
         }
         
-        .display-header {
+        .display-container {
+            padding: 20px;
+            max-width: 100vw;
+        }
+        
+        .header-section {
             background: rgba(255, 255, 255, 0.95);
             backdrop-filter: blur(10px);
-            padding: 20px 0;
-            box-shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
-            position: sticky;
-            top: 0;
-            z-index: 1000;
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 30px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
         }
         
-        .hospital-name {
-            font-size: 2.5rem;
-            font-weight: 800;
+        .header-section h1 {
             color: #2c5aa0;
-            text-align: center;
-            margin: 0;
+            font-size: 3rem;
+            font-weight: 800;
+            margin-bottom: 10px;
         }
         
-        .pharmacy-name {
-            font-size: 1.5rem;
-            font-weight: 600;
+        .header-section h2 {
             color: #4472c4;
-            text-align: center;
-            margin: 5px 0 0 0;
+            font-size: 2rem;
+            font-weight: 600;
+            margin-bottom: 20px;
         }
         
         .current-time {
-            font-size: 1.8rem;
-            font-weight: 700;
-            color: #2c5aa0;
-            text-align: center;
-            margin-top: 10px;
+            font-size: 1.5rem;
+            color: #666;
+            font-weight: 500;
         }
         
         .calling-section {
-            padding: 30px 0;
-            min-height: 300px;
-        }
-        
-        .calling-card {
-            background: linear-gradient(135deg, #ff6b6b, #ee5a24);
+            background: linear-gradient(135deg, #dc3545, #e83e8c);
             color: white;
-            border-radius: 25px;
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
-            margin-bottom: 20px;
-            animation: pulse-glow 2s infinite;
-            position: relative;
-            overflow: hidden;
-        }
-        
-        .calling-card::before {
-            content: '';
-            position: absolute;
-            top: -50%;
-            left: -50%;
-            width: 200%;
-            height: 200%;
-            background: linear-gradient(45deg, transparent, rgba(255,255,255,0.1), transparent);
-            animation: shine 3s infinite;
-        }
-        
-        @keyframes pulse-glow {
-            0%, 100% { 
-                box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2), 0 0 50px rgba(255, 107, 107, 0.5);
-            }
-            50% { 
-                box-shadow: 0 25px 50px rgba(0, 0, 0, 0.3), 0 0 80px rgba(255, 107, 107, 0.8);
-            }
-        }
-        
-        @keyframes shine {
-            0% { transform: translateX(-100%) translateY(-100%) rotate(45deg); }
-            100% { transform: translateX(100%) translateY(100%) rotate(45deg); }
-        }
-        
-        .calling-queue-number {
-            font-size: 5rem;
-            font-weight: 900;
+            border-radius: 20px;
+            padding: 40px;
+            margin-bottom: 30px;
             text-align: center;
-            margin: 20px 0;
+            box-shadow: 0 15px 35px rgba(220, 53, 69, 0.3);
+            animation: pulse 2s infinite;
+        }
+        
+        .calling-section h3 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 30px;
+        }
+        
+        .calling-queue {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 20px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .calling-queue:last-child {
+            margin-bottom: 0;
+        }
+        
+        .queue-number {
+            font-size: 4rem;
+            font-weight: 900;
+            margin-bottom: 15px;
             text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
         }
         
-        .calling-patient-name {
+        .patient-name {
             font-size: 2.5rem;
-            font-weight: 700;
-            text-align: center;
-            margin-bottom: 15px;
-            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
-        }
-        
-        .calling-message {
-            font-size: 1.5rem;
             font-weight: 600;
-            text-align: center;
-            margin-bottom: 20px;
-            animation: blink 1.5s infinite;
+            margin-bottom: 10px;
         }
         
-        @keyframes blink {
-            0%, 50% { opacity: 1; }
-            51%, 100% { opacity: 0.7; }
+        .counter-info {
+            font-size: 1.5rem;
+            font-weight: 500;
+            opacity: 0.9;
         }
         
-        .waiting-section {
-            padding: 20px 0;
-        }
-        
-        .section-title {
-            font-size: 2rem;
-            font-weight: 700;
-            color: white;
-            text-align: center;
+        .status-section {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
             margin-bottom: 30px;
-            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
         }
         
-        .queue-item {
+        .status-card {
             background: rgba(255, 255, 255, 0.95);
             backdrop-filter: blur(10px);
-            border-radius: 20px;
-            padding: 20px;
-            margin-bottom: 15px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+        }
+        
+        .status-card h4 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .waiting-card h4 { color: #ffc107; }
+        .preparing-card h4 { color: #0dcaf0; }
+        .completed-card h4 { color: #198754; }
+        
+        .queue-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            margin-bottom: 10px;
             transition: all 0.3s ease;
-            border-left: 5px solid #2c5aa0;
         }
         
         .queue-item:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.15);
+            background: #e9ecef;
+            transform: translateX(5px);
         }
         
-        .queue-emergency {
-            border-left-color: #dc3545;
-            background: linear-gradient(135deg, rgba(220, 53, 69, 0.1), rgba(255, 255, 255, 0.95));
+        .queue-item:last-child {
+            margin-bottom: 0;
         }
         
-        .queue-urgent {
-            border-left-color: #ffc107;
-            background: linear-gradient(135deg, rgba(255, 193, 7, 0.1), rgba(255, 255, 255, 0.95));
-        }
-        
-        .queue-number-small {
-            font-size: 2.5rem;
-            font-weight: 800;
+        .item-number {
+            font-size: 1.5rem;
+            font-weight: 700;
             color: #2c5aa0;
-            margin: 0;
         }
         
-        .patient-name-small {
-            font-size: 1.3rem;
-            font-weight: 600;
-            color: #333;
-            margin: 5px 0;
+        .item-name {
+            font-size: 1.1rem;
+            font-weight: 500;
+            color: #495057;
         }
         
-        .queue-details {
-            font-size: 1rem;
-            color: #666;
-            margin: 5px 0;
-        }
-        
-        .status-badge {
-            padding: 8px 15px;
-            border-radius: 20px;
-            font-weight: 600;
+        .item-time {
             font-size: 0.9rem;
-            display: inline-block;
-        }
-        
-        .status-waiting {
-            background: #fff3cd;
-            color: #856404;
-        }
-        
-        .status-preparing {
-            background: #cce5ff;
-            color: #0066cc;
+            color: #6c757d;
         }
         
         .priority-badge {
-            padding: 5px 12px;
+            padding: 5px 10px;
             border-radius: 15px;
-            font-weight: 600;
             font-size: 0.8rem;
-            display: inline-block;
-            margin-left: 10px;
+            font-weight: 600;
         }
         
         .priority-emergency {
             background: #dc3545;
             color: white;
-            animation: priority-pulse 1.5s infinite;
+            animation: blink 1s infinite;
         }
         
         .priority-urgent {
-            background: #ffc107;
-            color: #333;
+            background: #fd7e14;
+            color: white;
         }
         
         .priority-normal {
@@ -271,251 +211,328 @@ $pharmacy_name = $queue_manager->getSetting('pharmacy_name', 'ห้องยา
             color: white;
         }
         
-        @keyframes priority-pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.7; }
-        }
-        
-        .no-queue-message {
+        .no-queue {
             text-align: center;
-            padding: 50px 20px;
-            color: white;
+            padding: 40px;
+            color: #6c757d;
+            font-size: 1.2rem;
         }
         
-        .no-queue-message i {
-            font-size: 4rem;
-            margin-bottom: 20px;
-            opacity: 0.7;
+        .no-queue i {
+            font-size: 3rem;
+            margin-bottom: 15px;
+            opacity: 0.5;
         }
         
-        .no-queue-message h3 {
-            font-size: 2rem;
-            font-weight: 600;
-            margin-bottom: 10px;
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.8; }
+            100% { opacity: 1; }
         }
         
-        .footer-info {
-            background: rgba(0, 0, 0, 0.3);
-            color: white;
-            padding: 15px 0;
-            text-align: center;
-            margin-top: 30px;
-        }
-        
-        .auto-refresh {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            background: rgba(255, 255, 255, 0.9);
-            color: #2c5aa0;
-            padding: 10px 15px;
-            border-radius: 25px;
-            font-weight: 600;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
-        }
-        
-        .back-button {
-            position: fixed;
-            top: 20px;
-            left: 20px;
-            background: rgba(255, 255, 255, 0.9);
-            color: #2c5aa0;
-            padding: 10px 15px;
-            border-radius: 25px;
-            text-decoration: none;
-            font-weight: 600;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
-            transition: all 0.3s ease;
-            z-index: 1001;
-        }
-        
-        .back-button:hover {
-            background: #2c5aa0;
-            color: white;
-            transform: translateY(-2px);
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0.3; }
         }
         
         @media (max-width: 768px) {
-            .hospital-name {
-                font-size: 1.8rem;
+            .header-section h1 { font-size: 2rem; }
+            .header-section h2 { font-size: 1.5rem; }
+            .calling-section h3 { font-size: 2rem; }
+            .queue-number { font-size: 3rem; }
+            .patient-name { font-size: 2rem; }
+            .counter-info { font-size: 1.2rem; }
+            .status-section {
+                grid-template-columns: 1fr;
             }
-            
-            .pharmacy-name {
-                font-size: 1.2rem;
-            }
-            
-            .calling-queue-number {
-                font-size: 3.5rem;
-            }
-            
-            .calling-patient-name {
-                font-size: 1.8rem;
-            }
-            
-            .calling-message {
-                font-size: 1.2rem;
-            }
-            
-            .queue-number-small {
-                font-size: 2rem;
-            }
-            
-            .patient-name-small {
-                font-size: 1.1rem;
-            }
+        }
+        
+        .refresh-indicator {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 10px 15px;
+            border-radius: 25px;
+            font-size: 0.9rem;
+            z-index: 1000;
+        }
+        
+        .footer-info {
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 20px;
+            text-align: center;
+            margin-top: 30px;
         }
     </style>
 </head>
 <body>
-    <a href="<?php echo url('index.php'); ?>" class="back-button">
-        <i class="fas fa-arrow-left me-2"></i>กลับ
-    </a>
-    
-    <!-- Header -->
-    <div class="display-header">
-        <div class="container">
-            <h1 class="hospital-name"><?php echo htmlspecialchars($hospital_name); ?></h1>
-            <h2 class="pharmacy-name"><?php echo htmlspecialchars($pharmacy_name); ?></h2>
-            <div class="current-time" id="current-time"></div>
-        </div>
+    <!-- Refresh Indicator -->
+    <div class="refresh-indicator">
+        <i class="fas fa-sync-alt me-2"></i>
+        <span id="refresh-timer">30</span> วินาที
     </div>
-    
-    <!-- Calling Queue Section -->
-    <div class="calling-section">
-        <div class="container">
-            <?php if (!empty($calling_queues)): ?>
-                <div class="row">
-                    <?php foreach ($calling_queues as $queue): ?>
-                        <div class="col-md-6 mb-4">
-                            <div class="calling-card">
-                                <div class="card-body p-4">
-                                    <div class="text-center">
-                                        <i class="fas fa-volume-up fa-3x mb-3"></i>
-                                        <div class="calling-message">กรุณามารับยา</div>
-                                        <div class="calling-queue-number"><?php echo htmlspecialchars($queue['queue_number']); ?></div>
-                                        <div class="calling-patient-name">คุณ<?php echo htmlspecialchars($queue['patient_name']); ?></div>
-                                        <div style="font-size: 1.2rem; margin-top: 15px;">
-                                            <i class="fas fa-hand-point-right me-2"></i>ที่เคาน์เตอร์รับยา
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    <?php endforeach; ?>
-                </div>
-            <?php else: ?>
-                <div class="no-queue-message">
-                    <i class="fas fa-bell-slash"></i>
-                    <h3>ไม่มีการเรียกคิวในขณะนี้</h3>
-                    <p>กรุณารอการเรียกคิว</p>
-                </div>
-            <?php endif; ?>
+
+    <div class="display-container">
+        <!-- Header Section -->
+        <div class="header-section">
+            <h1><i class="fas fa-pills me-3"></i><?php echo htmlspecialchars($hospital_name); ?></h1>
+            <h2><?php echo htmlspecialchars($pharmacy_name); ?></h2>
+            <div class="current-time">
+                <i class="fas fa-clock me-2"></i>
+                <span id="current-time"><?php echo date('H:i:s'); ?></span>
+                <span class="ms-3" id="current-date"><?php echo date('d/m/Y'); ?></span>
+            </div>
         </div>
-    </div>
-    
-    <!-- Waiting Queue Section -->
-    <div class="waiting-section">
-        <div class="container">
-            <h2 class="section-title">
-                <i class="fas fa-clock me-3"></i>คิวที่รอรับยา
-            </h2>
+
+        <!-- Calling Section -->
+        <?php if (!empty($calling_queues)): ?>
+        <div class="calling-section">
+            <h3><i class="fas fa-volume-up me-3"></i>กำลังเรียกคิว</h3>
             
-            <?php if (!empty($pending_queues)): ?>
-                <div class="row">
-                    <?php 
-                    $display_count = 0;
-                    foreach ($pending_queues as $queue): 
-                        if ($display_count >= 12) break; // แสดงสูงสุด 12 คิว
-                        $display_count++;
-                    ?>
-                        <div class="col-md-4 col-lg-3 mb-3">
-                            <div class="queue-item <?php echo $queue['priority'] != 'normal' ? 'queue-' . $queue['priority'] : ''; ?>">
-                                <div class="d-flex justify-content-between align-items-start mb-2">
-                                    <div class="queue-number-small"><?php echo htmlspecialchars($queue['queue_number']); ?></div>
-                                    <div>
-                                        <?php if ($queue['priority'] != 'normal'): ?>
-                                            <span class="priority-badge priority-<?php echo $queue['priority']; ?>">
-                                                <?php echo $queue['priority_text']; ?>
-                                            </span>
-                                        <?php endif; ?>
-                                    </div>
-                                </div>
-                                
-                                <div class="patient-name-small">
-                                    <i class="fas fa-user me-2"></i>
-                                    <?php echo htmlspecialchars($queue['patient_name']); ?>
-                                </div>
-                                
-                                <div class="queue-details">
-                                    <i class="fas fa-id-card me-2"></i>
-                                    HN: <?php echo htmlspecialchars($queue['hn']); ?>
-                                </div>
-                                
-                                <div class="queue-details">
-                                    <i class="fas fa-clock me-2"></i>
-                                    <?php echo date('H:i น.', strtotime($queue['created_at'])); ?>
-                                </div>
-                                
-                                <div class="mt-2">
-                                    <span class="status-badge status-<?php echo $queue['status']; ?>">
-                                        <?php echo $queue['status_text']; ?>
-                                    </span>
-                                </div>
-                            </div>
+            <?php foreach ($calling_queues as $queue): ?>
+            <div class="calling-queue">
+                <div class="queue-number"><?php echo htmlspecialchars($queue['queue_number']); ?></div>
+                <div class="patient-name"><?php echo htmlspecialchars($queue['patient_name']); ?></div>
+                <div class="counter-info">
+                    <i class="fas fa-arrow-right me-2"></i>กรุณามารับยาที่เคาน์เตอร์
+                </div>
+                <?php if ($queue['priority'] !== 'normal'): ?>
+                <div class="mt-3">
+                    <span class="priority-badge priority-<?php echo $queue['priority']; ?>">
+                        <?php echo htmlspecialchars($queue['priority_text']); ?>
+                    </span>
+                </div>
+                <?php endif; ?>
+            </div>
+            <?php endforeach; ?>
+        </div>
+        <?php endif; ?>
+
+        <!-- Status Sections -->
+        <div class="status-section">
+            <!-- Waiting Queue -->
+            <div class="status-card waiting-card">
+                <h4>
+                    <i class="fas fa-clock"></i>
+                    รอเรียก (<?php echo count($waiting_queues); ?>)
+                </h4>
+                
+                <?php if (empty($waiting_queues)): ?>
+                    <div class="no-queue">
+                        <i class="fas fa-check-circle"></i>
+                        <div>ไม่มีคิวที่รอเรียก</div>
+                    </div>
+                <?php else: ?>
+                    <?php foreach (array_slice($waiting_queues, 0, 8) as $queue): ?>
+                    <div class="queue-item">
+                        <div>
+                            <div class="item-number"><?php echo htmlspecialchars($queue['queue_number']); ?></div>
+                            <div class="item-name"><?php echo htmlspecialchars($queue['patient_name']); ?></div>
                         </div>
+                        <div class="text-end">
+                            <?php if ($queue['priority'] !== 'normal'): ?>
+                                <span class="priority-badge priority-<?php echo $queue['priority']; ?>">
+                                    <?php echo htmlspecialchars($queue['priority_text']); ?>
+                                </span>
+                            <?php endif; ?>
+                            <div class="item-time"><?php echo date('H:i', strtotime($queue['created_at'])); ?></div>
+                        </div>
+                    </div>
                     <?php endforeach; ?>
                     
-                    <?php if (count($pending_queues) > 12): ?>
-                        <div class="col-12 text-center mt-3">
-                            <div style="background: rgba(255, 255, 255, 0.9); padding: 15px; border-radius: 15px; display: inline-block;">
-                                <span style="color: #666; font-weight: 600;">
-                                    และอีก <?php echo count($pending_queues) - 12; ?> คิว...
+                    <?php if (count($waiting_queues) > 8): ?>
+                    <div class="text-center mt-3">
+                        <small class="text-muted">และอีก <?php echo count($waiting_queues) - 8; ?> คิว...</small>
+                    </div>
+                    <?php endif; ?>
+                <?php endif; ?>
+            </div>
+
+            <!-- Preparing Queue -->
+            <div class="status-card preparing-card">
+                <h4>
+                    <i class="fas fa-cog"></i>
+                    กำลังเตรียม (<?php echo count($preparing_queues); ?>)
+                </h4>
+                
+                <?php if (empty($preparing_queues)): ?>
+                    <div class="no-queue">
+                        <i class="fas fa-pause-circle"></i>
+                        <div>ไม่มีคิวที่กำลังเตรียม</div>
+                    </div>
+                <?php else: ?>
+                    <?php foreach (array_slice($preparing_queues, 0, 8) as $queue): ?>
+                    <div class="queue-item">
+                        <div>
+                            <div class="item-number"><?php echo htmlspecialchars($queue['queue_number']); ?></div>
+                            <div class="item-name"><?php echo htmlspecialchars($queue['patient_name']); ?></div>
+                        </div>
+                        <div class="text-end">
+                            <?php if ($queue['priority'] !== 'normal'): ?>
+                                <span class="priority-badge priority-<?php echo $queue['priority']; ?>">
+                                    <?php echo htmlspecialchars($queue['priority_text']); ?>
                                 </span>
+                            <?php endif; ?>
+                            <div class="item-time"><?php echo date('H:i', strtotime($queue['created_at'])); ?></div>
+                        </div>
+                    </div>
+                    <?php endforeach; ?>
+                    
+                    <?php if (count($preparing_queues) > 8): ?>
+                    <div class="text-center mt-3">
+                        <small class="text-muted">และอีก <?php echo count($preparing_queues) - 8; ?> คิว...</small>
+                    </div>
+                    <?php endif; ?>
+                <?php endif; ?>
+            </div>
+
+            <!-- Completed Queue -->
+            <div class="status-card completed-card">
+                <h4>
+                    <i class="fas fa-check"></i>
+                    เสร็จสิ้นแล้ว (<?php echo count($completed_queues); ?>)
+                </h4>
+                
+                <?php if (empty($completed_queues)): ?>
+                    <div class="no-queue">
+                        <i class="fas fa-hourglass-start"></i>
+                        <div>ยังไม่มีคิวที่เสร็จสิ้น</div>
+                    </div>
+                <?php else: ?>
+                    <?php foreach (array_slice(array_reverse($completed_queues), 0, 8) as $queue): ?>
+                    <div class="queue-item">
+                        <div>
+                            <div class="item-number"><?php echo htmlspecialchars($queue['queue_number']); ?></div>
+                            <div class="item-name"><?php echo htmlspecialchars($queue['patient_name']); ?></div>
+                        </div>
+                        <div class="text-end">
+                            <div class="item-time">
+                                <?php echo $queue['completed_at'] ? date('H:i', strtotime($queue['completed_at'])) : date('H:i', strtotime($queue['updated_at'])); ?>
                             </div>
                         </div>
+                    </div>
+                    <?php endforeach; ?>
+                    
+                    <?php if (count($completed_queues) > 8): ?>
+                    <div class="text-center mt-3">
+                        <small class="text-muted">และอีก <?php echo count($completed_queues) - 8; ?> คิว...</small>
+                    </div>
                     <?php endif; ?>
-                </div>
-            <?php else: ?>
-                <div class="no-queue-message">
-                    <i class="fas fa-check-circle"></i>
-                    <h3>ไม่มีคิวรอ</h3>
-                    <p>คิวทั้งหมดได้รับการดำเนินการแล้ว</p>
-                </div>
-            <?php endif; ?>
+                <?php endif; ?>
+            </div>
         </div>
-    </div>
-    
-    <!-- Footer Info -->
-    <div class="footer-info">
-        <div class="container">
-            <div class="row">
-                <div class="col-md-6">
+
+        <!-- Footer Info -->
+        <div class="footer-info">
+            <div class="row align-items-center">
+                <div class="col-md-6 text-start">
                     <i class="fas fa-info-circle me-2"></i>
-                    ระบบจะอัพเดทอัตโนมัติทุก 30 วินาที
+                    <strong>หมายเหตุ:</strong> หน้าจอจะรีเฟรชอัตโนมัติทุก 30 วินาที
                 </div>
-                <div class="col-md-6 text-md-end">
-                    <i class="fas fa-calendar me-2"></i>
-                    วันที่ <span id="current-date"></span>
+                <div class="col-md-6 text-end">
+                    <a href="index.php" class="btn btn-outline-primary btn-sm">
+                        <i class="fas fa-home me-1"></i>กลับหน้าหลัก
+                    </a>
                 </div>
             </div>
         </div>
-    </div>
-    
-    <!-- Auto Refresh Indicator -->
-    <div class="auto-refresh">
-        <i class="fas fa-sync-alt me-2"></i>
-        <span id="refresh-countdown">30</span>s
     </div>
 
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     
     <script>
-        // เสียงแจ้งเตือนเมื่อมีการเรียกคิว
-        function playCallSound() {
+        // Real-time clock
+        function updateClock() {
+            const now = new Date();
+            const timeString = now.toLocaleTimeString('th-TH');
+            const dateString = now.toLocaleDateString('th-TH', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+                weekday: 'long'
+            });
+            
+            document.getElementById('current-time').textContent = timeString;
+            document.getElementById('current-date').textContent = dateString;
+        }
+        
+        // Auto refresh countdown
+        let refreshCounter = 30;
+        function updateRefreshTimer() {
+            document.getElementById('refresh-timer').textContent = refreshCounter;
+            refreshCounter--;
+            
+            if (refreshCounter < 0) {
+                location.reload();
+            }
+        }
+        
+        // Initialize
+        updateClock();
+        updateRefreshTimer();
+        
+        // Update every second
+        setInterval(updateClock, 1000);
+        setInterval(updateRefreshTimer, 1000);
+        
+        // Auto refresh every 30 seconds
+        setTimeout(() => {
+            location.reload();
+        }, 30000);
+        
+        // Prevent sleep/screensaver
+        let wakeLock = null;
+        
+        if ('wakeLock' in navigator) {
+            navigator.wakeLock.request('screen').then(wl => {
+                wakeLock = wl;
+                console.log('Screen wake lock active');
+            }).catch(err => {
+                console.log('Wake lock failed:', err);
+            });
+        }
+        
+        // Keep screen active with video method (fallback)
+        const video = document.createElement('video');
+        video.setAttribute('muted', '');
+        video.setAttribute('playsinline', '');
+        video.style.position = 'absolute';
+        video.style.top = '-1px';
+        video.style.left = '-1px';
+        video.style.width = '1px';
+        video.style.height = '1px';
+        video.style.opacity = '0.01';
+        
+        const canvas = document.createElement('canvas');
+        canvas.width = 1;
+        canvas.height = 1;
+        const ctx = canvas.getContext('2d');
+        ctx.fillRect(0, 0, 1, 1);
+        
+        const stream = canvas.captureStream(1);
+        video.srcObject = stream;
+        video.play();
+        
+        document.body.appendChild(video);
+        
+        // Visibility change handler
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden && wakeLock === null && 'wakeLock' in navigator) {
+                navigator.wakeLock.request('screen').then(wl => {
+                    wakeLock = wl;
+                });
+            }
+        });
+        
+        // Sound notification for new calls (if supported)
+        function playNotificationSound() {
             try {
                 const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                
                 const oscillator = audioContext.createOscillator();
                 const gainNode = audioContext.createGain();
                 
@@ -536,82 +553,23 @@ $pharmacy_name = $queue_manager->getSetting('pharmacy_name', 'ห้องยา
             }
         }
         
-        // Text-to-Speech สำหรับเรียกชื่อ
-        function announceQueue() {
-            <?php if (!empty($calling_queues)): ?>
-                <?php foreach ($calling_queues as $queue): ?>
-                    const text = "เรียกคิวหมายเลข <?php echo $queue['queue_number']; ?> คุณ<?php echo $queue['patient_name']; ?> กรุณามารับยาที่เคาน์เตอร์";
-                    
-                    if ('speechSynthesis' in window) {
-                        const utterance = new SpeechSynthesisUtterance(text);
-                        utterance.lang = 'th-TH';
-                        utterance.rate = 0.8;
-                        utterance.pitch = 1;
-                        utterance.volume = 0.8;
-                        
-                        window.speechSynthesis.speak(utterance);
+        // Check for updates periodically
+        let lastCallingCount = <?php echo count($calling_queues); ?>;
+        
+        setInterval(() => {
+            fetch('ajax/get_queue_stats.php')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const currentCalling = data.stats.ready || 0;
+                        if (currentCalling > lastCallingCount) {
+                            playNotificationSound();
+                        }
+                        lastCallingCount = currentCalling;
                     }
-                <?php endforeach; ?>
-                
-                // เล่นเสียงแจ้งเตือนก่อนประกาศ
-                playCallSound();
-            <?php endif; ?>
-        }
-        
-        // อัพเดทเวลา
-        function updateClock() {
-            const now = new Date();
-            const timeString = now.toLocaleTimeString('th-TH');
-            const dateString = now.toLocaleDateString('th-TH', {
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric',
-                weekday: 'long'
-            });
-            
-            document.getElementById('current-time').textContent = timeString;
-            document.getElementById('current-date').textContent = dateString;
-        }
-        
-        // Auto refresh countdown
-        let refreshCountdown = 30;
-        function updateRefreshCountdown() {
-            document.getElementById('refresh-countdown').textContent = refreshCountdown;
-            refreshCountdown--;
-            
-            if (refreshCountdown < 0) {
-                location.reload();
-            }
-        }
-        
-        // เริ่มต้น
-        document.addEventListener('DOMContentLoaded', function() {
-            updateClock();
-            
-            // ประกาศคิวเมื่อโหลดหน้า (ถ้ามีคิวที่เรียก)
-            setTimeout(announceQueue, 1000);
-            
-            // อัพเดทเวลาทุกวินาที
-            setInterval(updateClock, 1000);
-            
-            // นับถอยหลังการรีเฟรช
-            setInterval(updateRefreshCountdown, 1000);
-        });
-        
-        // ป้องกันการใช้ right-click และ F12
-        document.addEventListener('contextmenu', function(e) {
-            e.preventDefault();
-        });
-        
-        document.addEventListener('keydown', function(e) {
-            if (e.key === 'F12' || 
-                (e.ctrlKey && e.shiftKey && e.key === 'I') ||
-                (e.ctrlKey && e.shiftKey && e.key === 'C') ||
-                (e.ctrlKey && e.key === 'u')) {
-                e.preventDefault();
-            }
-        });
-        
-        // ซ่อน cursor หลังจาก 5 วินาที
-        let cursorTimeout;
-        function hideCursor
+                })
+                .catch(error => console.log('Stats check failed:', error));
+        }, 10000); // Check every 10 seconds
+    </script>
+</body>
+</html>
