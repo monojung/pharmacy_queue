@@ -3,6 +3,25 @@ require_once 'config/database.php';
 require_once 'includes/auth.php';
 require_once 'includes/queue_manager.php';
 
+// Helper function to generate URL - check if it exists first
+if (!function_exists('url')) {
+    function url($path = '') {
+        $base_url = getBaseUrl();
+        return rtrim($base_url, '/') . '/' . ltrim($path, '/');
+    }
+}
+
+// Base URL function - check if it exists first
+if (!function_exists('getBaseUrl')) {
+    function getBaseUrl() {
+        $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https://' : 'http://';
+        $host = $_SERVER['HTTP_HOST'];
+        $script = $_SERVER['SCRIPT_NAME'];
+        $path = dirname($script);
+        return $protocol . $host . ($path === '/' ? '' : $path);
+    }
+}
+
 $queue_manager = new QueueManager();
 
 // ถ้าล็อกอินแล้วให้ไปหน้า dashboard

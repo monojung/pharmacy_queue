@@ -1,22 +1,9 @@
 <?php
-// ฟังก์ชันสำหรับสร้าง URL ที่ถูกต้อง
-function getBaseUrl() {
-    $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http';
-    $host = $_SERVER['HTTP_HOST'];
-    $scriptName = $_SERVER['SCRIPT_NAME'];
-    $basePath = dirname($scriptName);
-    return $protocol . '://' . $host . ($basePath !== '/' ? $basePath : '');
-}
-
-function url($path = '') {
-    $baseUrl = getBaseUrl();
-    return $baseUrl . '/' . ltrim($path, '/');
-}
-
-// ตรวจสอบหน้าปัจจุบัน
-function isCurrentPage($page) {
-    $current = basename($_SERVER['PHP_SELF'], '.php');
-    return $current === $page;
+// Include common functions
+if (file_exists(__DIR__ . '/functions.php')) {
+    require_once __DIR__ . '/functions.php';
+} else if (file_exists('includes/functions.php')) {
+    require_once 'includes/functions.php';
 }
 ?>
 <!DOCTYPE html>
