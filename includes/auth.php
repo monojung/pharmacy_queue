@@ -228,6 +228,19 @@ class Auth {
     // บันทึกกิจกรรมผู้ใช้
     private function logUserActivity($user_id, $action, $description = '') {
         try {
+            // Check if table exists first
+            $stmt = $this->conn->prepare("SHOW TABLES LIKE 'user_activity_log'");
+            $stmt->execute();
+            
+            if ($stmt->rowCount() == 0) {
+                // Table doesn't exist, skip logging
+                return true;
+            }
+            
+            // Store variables to pass by reference
+            $ip_address = $_SERVER['REMOTE_ADDR'] ?? '';
+            $user_agent = $_SERVER['HTTP_USER_AGENT'] ?? '';
+            
             $stmt = $this->conn->prepare("
                 INSERT INTO user_activity_log (user_id, action, description, ip_address, user_agent) 
                 VALUES (:user_id, :action, :description, :ip_address, :user_agent)
@@ -235,8 +248,8 @@ class Auth {
             $stmt->bindParam(':user_id', $user_id);
             $stmt->bindParam(':action', $action);
             $stmt->bindParam(':description', $description);
-            $stmt->bindParam(':ip_address', $_SERVER['REMOTE_ADDR'] ?? '');
-            $stmt->bindParam(':user_agent', $_SERVER['HTTP_USER_AGENT'] ?? '');
+            $stmt->bindParam(':ip_address', $ip_address);
+            $stmt->bindParam(':user_agent', $user_agent);
             
             return $stmt->execute();
         } catch(PDOException $e) {
@@ -249,13 +262,26 @@ class Auth {
     // บันทึก failed login
     private function logFailedLogin($username) {
         try {
+            // Check if table exists first
+            $stmt = $this->conn->prepare("SHOW TABLES LIKE 'failed_login_log'");
+            $stmt->execute();
+            
+            if ($stmt->rowCount() == 0) {
+                // Table doesn't exist, skip logging
+                return true;
+            }
+            
+            // Store variables to pass by reference
+            $ip_address = $_SERVER['REMOTE_ADDR'] ?? '';
+            $user_agent = $_SERVER['HTTP_USER_AGENT'] ?? '';
+            
             $stmt = $this->conn->prepare("
                 INSERT INTO failed_login_log (username, ip_address, user_agent) 
                 VALUES (:username, :ip_address, :user_agent)
             ");
             $stmt->bindParam(':username', $username);
-            $stmt->bindParam(':ip_address', $_SERVER['REMOTE_ADDR'] ?? '');
-            $stmt->bindParam(':user_agent', $_SERVER['HTTP_USER_AGENT'] ?? '');
+            $stmt->bindParam(':ip_address', $ip_address);
+            $stmt->bindParam(':user_agent', $user_agent);
             
             return $stmt->execute();
         } catch(PDOException $e) {

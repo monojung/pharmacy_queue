@@ -10,8 +10,8 @@
                     <p class="mb-0">พัฒนาด้วย PHP และ Bootstrap</p>
                 </div>
                 <div class="col-md-6 text-md-end">
-                    <p class="mb-0">© <?php echo date('Y'); ?> <?php echo isset($queue_manager) ? $queue_manager->getSetting('hospital_name', 'โรงพยาบาล ABC') : 'โรงพยาบาล ABC'; ?></p>
-                    <small class="text-muted">Version 1.0</small>
+                    <p class="mb-0">© <?php echo date('Y'); ?> <?php echo isset($queue_manager) ? $queue_manager->getSetting('hospital_name', 'โรงพยาบาล') : 'โรงพยาบาล'; ?></p>
+                    <small class="text-mb-0">Version 1.0</small>
                 </div>
             </div>
         </div>

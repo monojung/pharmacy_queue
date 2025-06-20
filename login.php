@@ -7,8 +7,8 @@ $queue_manager = new QueueManager();
 
 // ถ้าล็อกอินแล้วให้ไปหน้า dashboard
 if ($auth->isLoggedIn()) {
-    $dashboard_url = function_exists('url') ? url('admin/dashboard.php') : '/admin/dashboard.php';
-    header('Location: ' . $dashboard_url);
+    // ใช้ relative path แทน function url
+    header('Location: admin/dashboard.php');
     exit();
 }
 
@@ -22,8 +22,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error_message = 'กรุณากรอกชื่อผู้ใช้และรหัสผ่าน';
     } else {
         if ($auth->login($username, $password)) {
-            $dashboard_url = function_exists('url') ? url('admin/dashboard.php') : '/admin/dashboard.php';
-            header('Location: ' . $dashboard_url);
+            // ตรวจสอบ redirect parameter
+            $redirect = $_GET['redirect'] ?? '';
+            if (!empty($redirect) && filter_var($redirect, FILTER_SANITIZE_URL)) {
+                header('Location: ' . $redirect);
+            } else {
+                header('Location: admin/dashboard.php');
+            }
             exit();
         } else {
             $error_message = 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง';
@@ -128,6 +133,11 @@ $page_title = 'เข้าสู่ระบบ';
             color: white;
         }
         
+        .btn-login:disabled {
+            opacity: 0.7;
+            transform: none;
+        }
+        
         .alert {
             border-radius: 15px;
             border: none;
@@ -184,10 +194,10 @@ $page_title = 'เข้าสู่ระบบ';
                     </div>
                 <?php endif; ?>
                 
-                <form method="POST" class="needs-validation" novalidate>
+                <form method="POST" class="needs-validation" novalidate id="loginForm">
                     <div class="form-floating">
                         <input type="text" class="form-control" id="username" name="username" 
-                               placeholder="ชื่อผู้ใช้" required>
+                               placeholder="ชื่อผู้ใช้" required autocomplete="username">
                         <label for="username"><i class="fas fa-user me-2"></i>ชื่อผู้ใช้</label>
                         <div class="invalid-feedback">
                             กรุณากรอกชื่อผู้ใช้
@@ -196,7 +206,7 @@ $page_title = 'เข้าสู่ระบบ';
                     
                     <div class="form-floating">
                         <input type="password" class="form-control" id="password" name="password" 
-                               placeholder="รหัสผ่าน" required>
+                               placeholder="รหัสผ่าน" required autocomplete="current-password">
                         <label for="password"><i class="fas fa-lock me-2"></i>รหัสผ่าน</label>
                         <div class="invalid-feedback">
                             กรุณากรอกรหัสผ่าน
@@ -205,20 +215,24 @@ $page_title = 'เข้าสู่ระบบ';
                     
                     <button type="submit" class="btn btn-login" id="loginBtn">
                         <div class="loading" id="loadingSpinner"></div>
-                        <i class="fas fa-sign-in-alt me-2"></i>เข้าสู่ระบบ
+                        <span id="btnText">
+                            <i class="fas fa-sign-in-alt me-2"></i>เข้าสู่ระบบ
+                        </span>
                     </button>
                 </form>
                 
                 <div class="text-center mt-4">
                     <small class="text-muted">
-                        ผู้ดูแลระบบ: admin / password
+                        <strong>บัญชีทดสอบ:</strong><br>
+                        ผู้ดูแลระบบ: <code>admin</code> / <code>password</code><br>
+                        เภสัชกร: <code>pharmacist</code> / <code>password</code>
                     </small>
                 </div>
             </div>
         </div>
         
         <div class="back-to-home">
-            <a href="<?php echo function_exists('url') ? url('index.php') : 'index.php'; ?>">
+            <a href="index.php">
                 <i class="fas fa-arrow-left me-2"></i>กลับสู่หน้าหลัก
             </a>
         </div>
@@ -228,35 +242,42 @@ $page_title = 'เข้าสู่ระบบ';
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     
     <script>
-        // Form validation
-        (function() {
-            'use strict';
-            window.addEventListener('load', function() {
-                var forms = document.getElementsByClassName('needs-validation');
-                var validation = Array.prototype.filter.call(forms, function(form) {
-                    form.addEventListener('submit', function(event) {
-                        if (form.checkValidity() === false) {
-                            event.preventDefault();
-                            event.stopPropagation();
-                        } else {
-                            // Show loading
-                            document.getElementById('loadingSpinner').style.display = 'inline-block';
-                            document.getElementById('loginBtn').disabled = true;
-                        }
-                        form.classList.add('was-validated');
-                    }, false);
-                });
-            }, false);
-        })();
+        // Form validation and submission
+        document.getElementById('loginForm').addEventListener('submit', function(event) {
+            event.preventDefault();
+            
+            const form = this;
+            const loginBtn = document.getElementById('loginBtn');
+            const loadingSpinner = document.getElementById('loadingSpinner');
+            const btnText = document.getElementById('btnText');
+            
+            // Check form validity
+            if (!form.checkValidity()) {
+                form.classList.add('was-validated');
+                return;
+            }
+            
+            // Show loading state
+            loadingSpinner.style.display = 'inline-block';
+            btnText.innerHTML = 'กำลังเข้าสู่ระบบ...';
+            loginBtn.disabled = true;
+            
+            // Submit form after short delay (for UX)
+            setTimeout(() => {
+                form.submit();
+            }, 500);
+        });
         
         // Auto focus on username field
         document.getElementById('username').focus();
         
-        // Enter key to submit
-        document.addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                document.querySelector('form').dispatchEvent(new Event('submit'));
-            }
+        // Clear validation on input
+        document.querySelectorAll('.form-control').forEach(input => {
+            input.addEventListener('input', function() {
+                if (this.classList.contains('is-invalid')) {
+                    this.classList.remove('is-invalid');
+                }
+            });
         });
     </script>
 </body>

@@ -39,17 +39,21 @@ include '../includes/header.php';
                             <i class="fas fa-tachometer-alt me-2"></i>แดชบอร์ด
                         </h2>
                         <p class="text-muted mb-0">ภาพรวมระบบเรียกคิวรับยา</p>
+                        <small class="text-success">
+                            <i class="fas fa-circle me-1"></i>ออนไลน์ - 
+                            ผู้ใช้: <?php echo htmlspecialchars($auth->getCurrentUser()['full_name']); ?>
+                        </small>
                     </div>
                     <div class="col-md-6 text-md-end">
                         <div class="btn-group" role="group">
-                            <a href="/admin/manage_queue.php" class="btn btn-primary">
+                            <a href="manage_queue.php" class="btn btn-primary">
                                 <i class="fas fa-list me-1"></i>จัดการคิว
                             </a>
-                            <a href="/display.php" class="btn btn-success">
+                            <a href="../display.php" class="btn btn-success" target="_blank">
                                 <i class="fas fa-tv me-1"></i>จอแสดงคิว
                             </a>
                             <?php if ($auth->hasRole(['admin'])): ?>
-                            <a href="/admin/settings.php" class="btn btn-warning">
+                            <a href="settings.php" class="btn btn-warning">
                                 <i class="fas fa-cog me-1"></i>การตั้งค่า
                             </a>
                             <?php endif; ?>
@@ -117,7 +121,7 @@ include '../includes/header.php';
                         <i class="fas fa-plus me-2"></i>สร้างคิวใหม่
                     </button>
                     
-                    <a href="/admin/manage_queue.php" class="btn btn-warning">
+                    <a href="manage_queue.php" class="btn btn-warning">
                         <i class="fas fa-edit me-2"></i>จัดการคิว
                     </a>
                     
@@ -240,7 +244,8 @@ include '../includes/header.php';
             </div>
             <div class="card-body">
                 <?php 
-                $recent_completed = $queue_manager->getAllQueues('completed', 10);
+                $recent_completed = $queue_manager->getAllQueues('completed', null);
+                $recent_completed = array_slice($recent_completed, 0, 10); // เอา 10 รายการล่าสุด
                 if (!empty($recent_completed)): 
                 ?>
                     <div class="table-responsive">
@@ -258,7 +263,7 @@ include '../includes/header.php';
                                     <tr>
                                         <td><strong><?php echo htmlspecialchars($queue['queue_number']); ?></strong></td>
                                         <td><?php echo htmlspecialchars($queue['patient_name']); ?></td>
-                                        <td><?php echo date('H:i:s', strtotime($queue['updated_at'])); ?></td>
+                                        <td><?php echo $queue['completed_at'] ? date('H:i:s', strtotime($queue['completed_at'])) : '-'; ?></td>
                                         <td>
                                             <span class="badge bg-success">เสร็จสิ้น</span>
                                         </td>
@@ -291,13 +296,18 @@ include '../includes/header.php';
             <form id="createQueueForm">
                 <div class="modal-body">
                     <div class="mb-3">
-                        <label for="patientName" class="form-label">ชื่อผู้ป่วย <span class="text-danger">*</span></label>
-                        <input type="text" class="form-control" id="patientName" name="patient_name" required>
+                        <label for="patientHN" class="form-label">หมายเลข HN <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="patientHN" name="hn" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="patientName" class="form-label">ชื่อผู้ป่วย</label>
+                        <input type="text" class="form-control" id="patientName" readonly>
                     </div>
                     
                     <div class="mb-3">
                         <label for="patientPhone" class="form-label">เบอร์โทรศัพท์</label>
-                        <input type="tel" class="form-control" id="patientPhone" name="patient_phone">
+                        <input type="tel" class="form-control" id="patientPhone" readonly>
                     </div>
                     
                     <div class="mb-3">
@@ -310,8 +320,13 @@ include '../includes/header.php';
                     </div>
                     
                     <div class="mb-3">
+                        <label for="medicineList" class="form-label">รายการยา</label>
+                        <textarea class="form-control" id="medicineList" name="medicine_list" rows="3"></textarea>
+                    </div>
+                    
+                    <div class="mb-3">
                         <label for="notes" class="form-label">หมายเหตุ</label>
-                        <textarea class="form-control" id="notes" name="notes" rows="3"></textarea>
+                        <textarea class="form-control" id="notes" name="notes" rows="2"></textarea>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -321,60 +336,6 @@ include '../includes/header.php';
                     </button>
                 </div>
             </form>
-        </div>
-    </div>
-</div>
-
-<!-- System Status Modal -->
-<div class="modal fade" id="systemStatusModal" tabindex="-1" aria-labelledby="systemStatusModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="systemStatusModalLabel">
-                    <i class="fas fa-server me-2"></i>สถานะระบบ
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <div class="row">
-                    <div class="col-md-6">
-                        <div class="card border-success">
-                            <div class="card-header bg-success text-white">
-                                <i class="fas fa-database me-2"></i>ฐานข้อมูล
-                            </div>
-                            <div class="card-body">
-                                <div class="d-flex justify-content-between">
-                                    <span>สถานะ:</span>
-                                    <span class="badge bg-success">ปกติ</span>
-                                </div>
-                                <div class="d-flex justify-content-between mt-2">
-                                    <span>เวลาตอบสนอง:</span>
-                                    <span>< 100ms</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="col-md-6">
-                        <div class="card border-success">
-                            <div class="card-header bg-success text-white">
-                                <i class="fas fa-volume-up me-2"></i>ระบบเสียง
-                            </div>
-                            <div class="card-body">
-                                <div class="d-flex justify-content-between">
-                                    <span>สถานะ:</span>
-                                    <span class="badge bg-success">พร้อมใช้งาน</span>
-                                </div>
-                                <div class="mt-2">
-                                    <button class="btn btn-sm btn-outline-primary" onclick="testSound()">
-                                        <i class="fas fa-play me-1"></i>ทดสอบเสียง
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
         </div>
     </div>
 </div>
@@ -434,183 +395,49 @@ const chart = new Chart(ctx, {
 document.getElementById('createQueueForm').addEventListener('submit', function(e) {
     e.preventDefault();
     
-    const formData = new FormData(this);
+    const formData = new FormData();
+    formData.append('create_queue', '1');
+    formData.append('hn', document.getElementById('patientHN').value);
+    formData.append('medicine_list', document.getElementById('medicineList').value);
+    formData.append('notes', document.getElementById('notes').value);
+    formData.append('priority', document.getElementById('priority').value);
     
-    fetch('../api/create_queue.php', {
+    fetch('../index.php', {
         method: 'POST',
         body: formData
     })
-    .then(response => response.json())
+    .then(response => response.text())
     .then(data => {
-        if (data.success) {
-            showAlert('สร้างคิวสำเร็จ หมายเลขคิว: ' + data.queue_number, 'success');
+        if (data.includes('สร้างคิวสำเร็จ')) {
             bootstrap.Modal.getInstance(document.getElementById('createQueueModal')).hide();
-            setTimeout(() => location.reload(), 1500);
+            location.reload();
         } else {
-            showAlert('เกิดข้อผิดพลาด: ' + data.message, 'danger');
+            alert('เกิดข้อผิดพลาดในการสร้างคิว');
         }
     })
     .catch(error => {
-        showAlert('เกิดข้อผิดพลาดในการเชื่อมต่อ', 'danger');
         console.error('Error:', error);
+        alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
     });
 });
 
-// ฟังก์ชันเรียกคิว
-function callQueue(queueId, queueNumber, patientName) {
-    fetch('../api/call_queue.php', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            queue_id: queueId,
-            queue_number: queueNumber,
-            patient_name: patientName
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            showAlert('เรียกคิว ' + queueNumber + ' แล้ว', 'success');
-            // Play sound
-            playCallSound();
-        } else {
-            showAlert('เกิดข้อผิดพลาด: ' + data.message, 'danger');
-        }
-    })
-    .catch(error => {
-        showAlert('เกิดข้อผิดพลาดในการเชื่อมต่อ', 'danger');
-        console.error('Error:', error);
-    });
-}
-
-// ฟังก์ชันเรียกคิวถัดไป
-function callNextQueue() {
-    fetch('../api/call_next_queue.php', {
-        method: 'POST'
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            showAlert('เรียกคิว ' + data.queue_number + ' แล้ว', 'success');
-            playCallSound();
-            setTimeout(() => location.reload(), 1000);
-        } else {
-            showAlert(data.message || 'ไม่มีคิวที่รอเรียก', 'warning');
-        }
-    })
-    .catch(error => {
-        showAlert('เกิดข้อผิดพลาดในการเชื่อมต่อ', 'danger');
-        console.error('Error:', error);
-    });
-}
-
-// ฟังก์ชันอัพเดทสถานะคิว
-function updateQueueStatus(queueId, status) {
-    fetch('../api/update_queue_status.php', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            queue_id: queueId,
-            status: status
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            showAlert('อัพเดทสถานะสำเร็จ', 'success');
-            setTimeout(() => location.reload(), 1000);
-        } else {
-            showAlert('เกิดข้อผิดพลาด: ' + data.message, 'danger');
-        }
-    })
-    .catch(error => {
-        showAlert('เกิดข้อผิดพลาดในการเชื่อมต่อ', 'danger');  
-        console.error('Error:', error);
-    });
-}
-
-// ฟังก์ชันเล่นเสียงเรียกคิว
-function playCallSound() {
-    // Create audio context for better browser compatibility
-    const audio = new Audio('../assets/sounds/call.mp3');
-    audio.play().catch(error => {
-        console.log('Could not play audio:', error);
-    });
-}
-
-// ฟังก์ชันทดสอบเสียง
-function testSound() {
-    playCallSound();
-    showAlert('ทดสอบเสียงแล้ว', 'info');
-}
-
-// ฟังก์ชันแสดงข้อความแจ้งเตือน
-function showAlert(message, type = 'info') {
-    const alertDiv = document.createElement('div');
-    alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
-    alertDiv.style.top = '20px';
-    alertDiv.style.right = '20px';
-    alertDiv.style.zIndex = '9999';
-    alertDiv.style.minWidth = '300px';
-    
-    alertDiv.innerHTML = `
-        ${message}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    `;
-    
-    document.body.appendChild(alertDiv);
-    
-    // Auto remove after 5 seconds
-    setTimeout(() => {
-        if (alertDiv.parentNode) {
-            alertDiv.parentNode.removeChild(alertDiv);
-        }
-    }, 5000);
-}
+// ฟังก์ชันค้นหาผู้ป่วย
+document.getElementById('patientHN').addEventListener('input', function() {
+    const hn = this.value;
+    if (hn.length >= 3) {
+        searchPatient(hn);
+    } else {
+        document.getElementById('patientName').value = '';
+        document.getElementById('patientPhone').value = '';
+    }
+});
 
 // Auto refresh every 30 seconds
 setInterval(() => {
-    // Refresh only the queue sections without full page reload
-    refreshQueueData();
-}, 30000);
-
-// ฟังก์ชันรีเฟรชข้อมูลคิว
-function refreshQueueData() {
-    fetch('../api/get_queue_stats.php')
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            // Update statistics cards
-            updateStatsCards(data.stats);
-        }
-    })
-    .catch(error => {
-        console.error('Error refreshing data:', error);
-    });
-}
-
-// ฟังก์ชันอัพเดทการ์ดสถิติ
-function updateStatsCards(stats) {
-    const cards = document.querySelectorAll('.card h3');
-    if (cards.length >= 4) {
-        cards[0].textContent = stats.total || 0;
-        cards[1].textContent = stats.waiting || 0;
-        cards[2].textContent = stats.preparing || 0;
-        cards[3].textContent = stats.completed || 0;
+    if (!document.querySelector('.modal.show')) {
+        location.reload();
     }
-}
-
-// Initialize tooltips
-document.addEventListener('DOMContentLoaded', function() {
-    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
-        return new bootstrap.Tooltip(tooltipTriggerEl);
-    });
-});
+}, 30000);
 </script>
 
 <?php include '../includes/footer.php'; ?>
